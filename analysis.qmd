@@ -1,0 +1,194 @@
+---
+title: "Spanish adaptation of the Primary Lateral Sclerosis Functional Rating Scale (PLSFRS)"
+date: 2025-05-01
+authors:
+  - name: Alejandro Caravaca Puchades
+    orcid: 0000-0003-2223-7335
+    email: acaravaca@idibell.cat
+    affiliations:
+      - name: Department of Neurology, Hospital Universitari de Bellvitge, IDIBELL (Institut d'Investigació Biomèdica de Bellvitge), University of Barcelona
+        city: Barcelona
+        country: Spain
+      - name: Center for Biomedical Network Research on Rare Diseases (CIBERER), Instituto de Salud Carlos III
+        city: Madrid
+        country: Spain
+  - name: Andrés J. Paipa Merchán
+    email: andres.paipa@bellvitgehospital.cat
+    affiliations:
+      - name: Department of Neurology, Hospital Universitari de Bellvitge, IDIBELL (Institut d'Investigació Biomèdica de Bellvitge), University of Barcelona
+        city: Barcelona
+        country: Spain
+output: html
+toc: true
+toc_depth: 2
+toc_float: true
+df-print: paged
+number_sections: true
+---
+
+# Initializing the environment
+
+```{r}
+library(irr)
+library(ggplot2)
+library(gtsummary)
+library(patchwork)
+library(psych)
+library(tidyverse)
+```
+
+```{r}
+options(digits=3)
+theme_set(theme_grey() + theme(plot.background = element_blank()))
+```
+
+# Loading the dataset
+
+```{r}
+source("R/data.R")
+```
+
+# Internal consistency
+
+```{r}
+alpha(data |> filter(trial == 1) |> select(habla, salivación, deglución))
+```
+
+```{r}
+alpha(data |> filter(trial == 2) |> select(habla, salivación, deglución))
+```
+
+```{r}
+alpha(data |> filter(trial == 1) |> select(escritura, utensilios, vestido))
+```
+
+```{r}
+alpha(data |> filter(trial == 2) |> select(escritura, utensilios, vestido))
+```
+
+```{r}
+alpha(data |> filter(trial == 1) |> select(giro, caminar, escaleras))
+```
+
+```{r}
+alpha(data |> filter(trial == 2) |> select(giro, caminar, escaleras))
+```
+
+```{r}
+alpha(data |> filter(trial == 1) |> select(disnea, ortopnea, ventilación))
+```
+
+```{r}
+alpha(data |> filter(trial == 2) |> select(disnea, ortopnea, ventilación))
+```
+
+# Correlation analysis
+
+```{r}
+data.intra |>
+  reframe(
+    cor.test(`1`, `2`) |> tidy(),
+    .by = c(measure, rater)
+  ) |>
+  arrange(measure, rater) |>
+  relocate(measure, rater, estimate, p.value, conf.low, conf.high)
+```
+
+```{r}
+data.inter |>
+  reframe(
+    cor.test(A, B) |> tidy(),
+    .by = c(measure, trial)
+  ) |>
+  arrange(measure, trial) |>
+  relocate(measure, trial, estimate, p.value, conf.low, conf.high)
+```
+
+```{r}
+#| cap-location: margin
+#| fig-cap: "Scatter plots showing the correlation of PLSFRS subdomain scores (left) and PLSFRS total scores (right) among the two independent raters."
+#| label: fig-inter-cor
+
+scores_inter_cor <- data.inter |>
+  filter(measure != "total_plsfrs") |>
+  ggplot(aes(A, B)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula=y~x) +
+  facet_wrap(~measure, scales = "free") +
+  labs(x = "Rater A", y = "Rater B")
+
+total_inter_cor <- data.inter |>
+  filter(measure == "total_plsfrs") |>
+  ggplot(aes(A, B)) +
+  geom_point() +
+  geom_smooth(method="lm", formula=y~x) +
+  facet_wrap(~measure) +
+  labs(x = "Rater A", y = "Rater B")
+
+scores_inter_cor | total_inter_cor
+```
+
+# Reliability analysis
+
+## Inter-rater reliability
+
+```{r}
+data.inter |>
+  reframe(
+    icc(pick(c(A, B)), model="twoway", type="agreement", unit="average") |>
+      unclass() |>
+      as_tibble(),
+    .by = c(measure, trial)
+  ) |>
+  select(measure, trial, value, lbound, ubound, p.value) |>
+  arrange(measure, trial)
+```
+
+## Intra-rater reliability
+
+```{r}
+data.intra |>
+  reframe(
+    ICC(pick(c(`1`, `2`)))$results,
+    .by = c(measure, rater)
+  ) |>
+  arrange(measure, rater) |>
+  filter(type == "ICC3k") |>
+  relocate(measure, rater, type, ICC, p, `lower bound`, `upper bound`)
+```
+
+# Bland-Altman analysis
+
+```{r}
+#| cap-location: margin
+#| fig-cap: "Bland-Altman plots showing lack of systematic bias of PLSFRS subdomain scores (left) and PLSFRS total scores (right) among the two independent raters."
+#| label: fig-scores-ba
+
+scores_inter_ba <- data.inter |>
+  filter(measure != "total_plsfrs") |>
+  ggplot(aes((A + B) / 2, A - B)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean_diff), color = "red") +
+  geom_hline(aes(yintercept = mean_diff + 1.96 * sd_diff), color = "red", linetype = 2) +
+  geom_hline(aes(yintercept = mean_diff - 1.96 * sd_diff), color = "red", linetype = 2) +
+  facet_wrap(~measure, scales = "free") +
+  labs(
+    x = "Average Between Rater A and B",
+    y = "Difference: Rater A - Rater B"
+  )
+
+total_inter_ba <- data.inter |>
+  filter(measure == "total_plsfrs") |>
+  ggplot(aes((A + B) / 2, A - B)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean_diff), color = "red") +
+  geom_hline(aes(yintercept = mean_diff + 1.96 * sd_diff), color = "red", linetype = 2) +
+  geom_hline(aes(yintercept = mean_diff - 1.96 * sd_diff), color = "red", linetype = 2) +
+  facet_wrap(~measure) +
+  labs(
+    x = "Average Between Rater A and B",
+    y = "Difference: Rater A - Rater B"
+  )
+
+scores_inter_ba | total_inter_ba
+```
