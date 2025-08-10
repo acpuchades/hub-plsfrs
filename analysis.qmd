@@ -82,6 +82,29 @@ alpha(data |> filter(trial == 1) |> select(disnea, ortopnea, ventilación))
 alpha(data |> filter(trial == 2) |> select(disnea, ortopnea, ventilación))
 ```
 
+# Kappa-index
+
+```{r}
+data.inter |>
+  reframe(
+    cohen.kappa(as.matrix(pick(A, B))) |> tidy(),
+    .by = c(measure, trial)
+  ) |>
+  filter(type == "weighted") |>
+  arrange(measure, trial) |>
+  select(measure, trial, estimate, conf.low, conf.high)
+```
+
+```{r}
+data.intra |>
+  reframe(
+    cohen.kappa(as.matrix(pick(`1`, `2`))) |> tidy(),
+    .by = measure
+  ) |>
+  filter(type == "weighted") |>
+  arrange(measure)
+```
+
 # Correlation analysis
 
 ```{r}
@@ -110,9 +133,9 @@ data.inter |>
 #| label: fig-inter-cor
 
 scores_inter_cor <- data.inter |>
-  filter(measure != "total_plsfrs") |>
+  filter(measure %in% c("bulbar", "fine_motor", "gross_motor", "respiratory")) |>
   ggplot(aes(A, B)) +
-  geom_point() +
+  geom_jitter(size=0.5, width=0.5, height=0.5) +
   geom_smooth(method = "lm", formula=y~x) +
   facet_wrap(~measure, scales = "free") +
   labs(x = "Rater A", y = "Rater B")
@@ -120,7 +143,7 @@ scores_inter_cor <- data.inter |>
 total_inter_cor <- data.inter |>
   filter(measure == "total_plsfrs") |>
   ggplot(aes(A, B)) +
-  geom_point() +
+  geom_jitter(size=0.5, width=0.5, height=0.5) +
   geom_smooth(method="lm", formula=y~x) +
   facet_wrap(~measure) +
   labs(x = "Rater A", y = "Rater B")
@@ -134,8 +157,9 @@ scores_inter_cor | total_inter_cor
 
 ```{r}
 data.inter |>
+  filter(measure %in% c("bulbar", "fine_motor", "gross_motor", "respiratory", "total_plsfrs")) |>
   reframe(
-    icc(pick(c(A, B)), model="twoway", type="agreement", unit="average") |>
+    icc(pick(c(A, B)), model="twoway", type="agreement", unit="single") |>
       unclass() |>
       as_tibble(),
     .by = c(measure, trial)
@@ -148,13 +172,15 @@ data.inter |>
 
 ```{r}
 data.intra |>
+  filter(measure %in% c("bulbar", "fine_motor", "gross_motor", "respiratory", "total_plsfrs")) |>
   reframe(
-    ICC(pick(c(`1`, `2`)))$results,
+    icc(pick(c(`1`, `2`)), model="twoway", type="agreement", unit="single") |>
+      unclass() |>
+      as_tibble(),
     .by = c(measure, rater)
   ) |>
-  arrange(measure, rater) |>
-  filter(type == "ICC3k") |>
-  relocate(measure, rater, type, ICC, p, `lower bound`, `upper bound`)
+  select(measure, rater, value, lbound, ubound, p.value) |>
+  arrange(measure, rater)
 ```
 
 # Bland-Altman analysis
@@ -165,30 +191,46 @@ data.intra |>
 #| label: fig-scores-ba
 
 scores_inter_ba <- data.inter |>
-  filter(measure != "total_plsfrs") |>
+  filter(measure %in% c("bulbar", "fine_motor", "gross_motor", "respiratory")) |>
+  mutate(method = as.integer(trial) |> case_match(
+    1 ~ "In clinic",
+    2 ~ "Over the phone"
+  )) |>
   ggplot(aes((A + B) / 2, A - B)) +
-  geom_point() +
+  geom_jitter(aes(color = method), size=0.5, width=0.5, height=0.5) +
   geom_hline(aes(yintercept = mean_diff), color = "red") +
   geom_hline(aes(yintercept = mean_diff + 1.96 * sd_diff), color = "red", linetype = 2) +
   geom_hline(aes(yintercept = mean_diff - 1.96 * sd_diff), color = "red", linetype = 2) +
   facet_wrap(~measure, scales = "free") +
+  scale_color_brewer(palette = "Set1") +
+  coord_cartesian(xlim = c(0, 18)) +
   labs(
     x = "Average Between Rater A and B",
-    y = "Difference: Rater A - Rater B"
+    y = "Difference: Rater A - Rater B",
+    color = "Method"
   )
 
 total_inter_ba <- data.inter |>
   filter(measure == "total_plsfrs") |>
+  mutate(method = as.integer(trial) |> case_match(
+    1 ~ "In clinic",
+    2 ~ "Over the phone"
+  )) |>
   ggplot(aes((A + B) / 2, A - B)) +
-  geom_point() +
+  geom_jitter(aes(color = method), size=0.5, width=0.5, height=0.5) +
   geom_hline(aes(yintercept = mean_diff), color = "red") +
   geom_hline(aes(yintercept = mean_diff + 1.96 * sd_diff), color = "red", linetype = 2) +
   geom_hline(aes(yintercept = mean_diff - 1.96 * sd_diff), color = "red", linetype = 2) +
   facet_wrap(~measure) +
+  coord_cartesian(xlim = c(0, 68)) +
+  scale_color_brewer(palette = "Set1") +
   labs(
     x = "Average Between Rater A and B",
-    y = "Difference: Rater A - Rater B"
+    y = "Difference: Rater A - Rater B",
+    color = "Method"
   )
 
-scores_inter_ba | total_inter_ba
+scores_inter_ba + total_inter_ba +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "top")
 ```

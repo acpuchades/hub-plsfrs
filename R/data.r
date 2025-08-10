@@ -47,18 +47,21 @@ data.l <- data |>
         "bulbar", "fine_motor", "gross_motor", "respiratory", "total_plsfrs"
     )))
 
-data.inter <- data.l |>
-    pivot_wider(names_from = rater, values_from = value) |>
-    mutate(
-        mean_diff = mean(A - B),
-        sd_diff = sd(A - B),
-        .by = measure
-    )
+data.inter <- data |>
+  pivot_longer(-c(id, trial, rater), names_to = "measure", values_to = "score") |>
+  pivot_wider(names_from = rater, values_from = score) |>
+  mutate(
+    mean_diff = mean(A - B),
+    sd_diff = sd(A - B),
+    .by = measure
+  )
 
-data.intra <- data.l |>
-    pivot_wider(names_from = trial, values_from = value) |>
-    mutate(
-        mean_diff = mean(`1` - `2`),
-        sd_diff = sd(`1` - `2`),
-        .by = measure
-    )
+data.intra <- data |>
+  pivot_longer(-c(id, trial, rater), names_to = "measure", values_to = "score") |>
+  pivot_wider(names_from = trial, values_from = score) |>
+  mutate(
+    mean_diff = mean(`1` - `2`),
+    sd_diff = sd(`1` - `2`),
+    .by = measure
+  )
+
