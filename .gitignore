@@ -38,14 +38,6 @@ cache/
 # Direnv folder
 .direnv
 
-# Data folder
-data/
-
-# Spreadsheet and CSV files
-*.csv
-*.xls
-*.xlsx
-
 # Output files
 analysis_files/
 *.html
